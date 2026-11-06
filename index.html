@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>BRÈCHE — Prototype 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  /* ===== JETONS DE DESIGN : une seule source de vérité pour le style ===== */
+  :root{
+    --ink:#2a2f45; --ink-soft:#5a5f70;
+    --cream:#FFF6E3; --parch:#e8dcc0; --parch-d:#c9b896;
+    --gold:#f5c518; --gold-d:#c9a416;
+    --stone:#8FA0AE; --wood:#C98A3B;
+    --hud:rgba(255,255,255,.66);
+    --r:12px; --r-lg:18px; --r-pill:22px;
+    --shadow-hud:0 2px 12px rgba(20,30,50,.14);
+    --shadow-card:0 14px 44px rgba(20,30,50,.35), inset 0 0 0 2px var(--parch);
+    --t:transform .12s ease, box-shadow .12s ease, filter .15s ease, background .15s ease;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; font-family: 'Inter', system-ui, sans-serif; background: #BFE3F2;
+               -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; overscroll-behavior:none; }
+  #app { position: fixed; inset: 0; touch-action:none; }
+  canvas { display: block; touch-action:none; }
+  .hud { position: fixed; pointer-events: none; color: #2a2f45; }
+  #title { top: 12px; left: 16px; font-weight: 800; font-size: 19px; font-family:'Cinzel',Georgia,serif; color:var(--ink);
+           letter-spacing:1px; text-shadow:0 1px 2px rgba(255,255,255,.5); }
+  #title small { display:block; font-weight:500; font-size:11.5px; opacity:.7; letter-spacing:0; }
+  #mode { top: 14px; left: 50%; transform: translateX(-50%); font-weight: 800; font-size: 15px; color:var(--ink);
+          background: var(--hud); padding: 7px 18px; border-radius: var(--r-pill); box-shadow:var(--shadow-hud);
+          backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); letter-spacing:.5px; }
+  #shots { top: 16px; right: 16px; font-weight: 700; font-size: 16px; text-align: right; letter-spacing:1px; }
+  #help { bottom: 14px; left: 16px; font-size: 13px; line-height: 1.5; background: var(--hud); color:var(--ink);
+          padding: 10px 14px; border-radius: var(--r); max-width: 340px; box-shadow:var(--shadow-hud);
+          backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
+  #palette { position: fixed; top: 54px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
+  #palette button { pointer-events: auto; border: 3px solid transparent; min-width: 58px; height: 54px;
+                    border-radius: var(--r); cursor: pointer; font-size: 12px; font-weight: 700; color: #fff;
+                    text-shadow:0 1px 2px rgba(0,0,0,.4); box-shadow: 0 2px 8px rgba(20,30,50,.18); padding:0 8px;
+                    transition:var(--t); }
+  #palette button:hover { filter:brightness(1.06); transform:translateY(-1px); }
+  #palette button.sel { border-color: #fff; transform: translateY(-4px); box-shadow:0 6px 14px rgba(20,30,50,.28), 0 0 0 3px var(--ink); }
+  .btns { position: fixed; bottom: 16px; right: 16px; display: flex; gap: 8px; align-items:center; }
+  .btns button { pointer-events: auto; border: none; background: var(--cream); color: var(--ink); font-weight: 700;
+                 font-size: 16px; height: 50px; min-width: 50px; padding: 0 16px; border-radius: var(--r);
+                 cursor: pointer; box-shadow: 0 3px 0 var(--parch-d); transition:var(--t);
+                 display:inline-flex; align-items:center; justify-content:center; gap:7px; }
+  .btns button:hover { filter:brightness(1.05); }
+  .btns button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--parch-d); }
+  .btns button svg { width:20px; height:20px; display:block; }
+  /* groupe d'outils (tourner/annuler) visuellement réuni et discret */
+  .toolgrp { pointer-events:auto; display:inline-flex; gap:2px; background:rgba(255,246,227,.55); padding:5px;
+             border-radius:var(--r); box-shadow:0 2px 8px rgba(20,30,50,.12); margin-right:4px; }
+  .toolgrp button { height:40px; min-width:40px; padding:0 10px; box-shadow:none; background:transparent; }
+  .toolgrp button:active { transform:translateY(1px); box-shadow:none; background:rgba(0,0,0,.05); }
+  #siegeBtn { background:var(--parch); box-shadow:0 3px 0 var(--parch-d); }
+  #action { background: var(--gold); box-shadow:0 3px 0 var(--gold-d); }
+  #action:active { box-shadow:0 1px 0 var(--gold-d); }
+  .btns button:disabled { opacity:.4; box-shadow:0 1px 0 var(--parch-d); cursor:not-allowed; filter:grayscale(.4); transform:none; }
+  #power { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); width: 248px; height: 24px;
+           background: rgba(255,255,255,.62); border-radius: var(--r); overflow: hidden; display: none;
+           box-shadow:var(--shadow-hud), inset 0 0 0 2px rgba(255,255,255,.5);
+           backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
+  #power > i { position:absolute; left:0; top:0; height: 100%; width: 0%; background: linear-gradient(90deg,#7ec850,#f5c518,#e0653c); transition:width .03s linear; }
+  #power > span { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+                  font-size:11px; font-weight:800; letter-spacing:3px; color:var(--ink); opacity:.7; pointer-events:none; }
+  /* graduations de la jauge */
+  #power::after { content:''; position:absolute; inset:0; pointer-events:none; border-radius:inherit;
+                  background:repeating-linear-gradient(90deg,transparent 0,transparent 48px,rgba(42,47,69,.18) 48px,rgba(42,47,69,.18) 49px); }
+  #msg { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; pointer-events: none; }
+  #msg b { font-size: 62px; font-weight: 900; color: #fff; text-shadow: 0 4px 0 #e0653c, 0 0 30px rgba(0,0,0,.25);
+           animation: pop .35s ease; }
+  @keyframes pop { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  #boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; text-align:center;
+          color:#2a2f45; font-size: 16px; padding: 24px; }
+  #serment { position: fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(20,30,50,.45); }
+  #serment .scard { background:#FFF6E3; padding:22px 26px; border-radius:18px; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,.3); pointer-events:auto; }
+  #serment h3 { font-size:15px; color:#2a2f45; margin-bottom:10px; letter-spacing:.5px; font-family:'Cinzel',Georgia,serif; }
+  #serment canvas { background:#fff; border-radius:8px; }
+  #serment .sname { font-size:20px; font-weight:800; color:#2a2f45; margin:10px 0; font-family:'Cinzel',Georgia,serif; }
+  #serment .srow { display:flex; gap:8px; justify-content:center; margin-bottom:12px; }
+  #serment button { border:none; background:#e8dcc0; color:#2a2f45; font-weight:700; padding:8px 14px; border-radius:10px; cursor:pointer; }
+  #serment .swear { background:#f5c518; font-size:16px; padding:12px 22px; box-shadow:0 3px 0 #c9a416; }
+  #banner { position:fixed; top:44px; left:16px; display:none; gap:8px; align-items:center; background:rgba(255,255,255,.6);
+            padding:5px 12px 5px 7px; border-radius:12px; color:#2a2f45; pointer-events:none; }
+  #banner b { font-size:15px; font-family:'Cinzel',Georgia,serif; } #banner small { opacity:.75; font-size:12px; }
+  #endscreen { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(20,30,50,.5); }
+  #endscreen .ecard { background:#FFF6E3; padding:26px 34px; border-radius:18px; text-align:center; box-shadow:0 12px 44px rgba(0,0,0,.35); pointer-events:auto; }
+  #endTitle { font-size:38px; font-weight:900; color:#2a2f45; margin-bottom:6px; font-family:'Cinzel',Georgia,serif; }
+  #endSub { font-size:15px; color:#5a5f70; margin-bottom:18px; }
+  #endscreen .erow { display:flex; gap:10px; justify-content:center; }
+  #endscreen button { border:none; font-weight:700; font-size:15px; padding:12px 18px; border-radius:12px; cursor:pointer; }
+  #replayBtn { background:#f5c518; box-shadow:0 3px 0 #c9a416; }
+  #rebuildBtn { background:#e8dcc0; box-shadow:0 3px 0 #c9b896; }
+  /* --- cohérence des boutons (jeton qui s'enfonce, partout) --- */
+  #serment button, #endscreen button { box-shadow:0 3px 0 #d8cdae; transition:transform .1s ease, box-shadow .1s ease; }
+  #serment button:active, #endscreen button:active { transform:translateY(2px); box-shadow:0 1px 0 #d8cdae; }
+  #serment .swear { box-shadow:0 3px 0 #c9a416; } #serment .swear:active { box-shadow:0 1px 0 #c9a416; }
+  .btns button:disabled { opacity:.4; box-shadow:0 1px 0 #d8cdae; cursor:not-allowed; filter:grayscale(.4); transform:none; }
+  /* --- pop des compteurs + pastilles --- */
+  @keyframes popcount { 0%{transform:scale(1)} 40%{transform:scale(1.2)} 100%{transform:scale(1)} }
+  .pop { display:inline-block; animation:popcount .3s ease; }
+  #gloireHud, #shots { background:var(--hud); padding:6px 15px; border-radius:var(--r-pill); box-shadow:var(--shadow-hud);
+                       backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
+  #gloireHud { color:#a06a00; }
+  /* --- écran-titre --- */
+  #home { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
+          background:linear-gradient(180deg,#CFEBF7,#FFF6E3); text-align:center; }
+  #home .logo { font-family:'Cinzel',serif; font-weight:800; font-size:clamp(56px,12vw,100px); color:#2a2f45;
+                letter-spacing:5px; line-height:1; text-shadow:0 3px 0 #fff, 0 7px 20px rgba(20,30,50,.22); }
+  #home .logo-sub { font-family:'Cinzel',serif; font-size:15px; letter-spacing:6px; text-transform:uppercase; color:#5a5f70; margin:12px 0 34px; }
+  #home .home-btn { display:block; width:300px; margin:11px auto; height:56px; font-size:18px; border:none; border-radius:14px; cursor:pointer;
+                    font-family:'Inter',sans-serif; font-weight:700; color:#2a2f45; background:#e8dcc0; box-shadow:0 3px 0 #c9b896; }
+  #home .home-btn.primary { background:#f5c518; box-shadow:0 3px 0 #c9a416; }
+  #home .home-btn:active { transform:translateY(2px); box-shadow:0 1px 0 #c9b896; }
+  #home .home-ghost { background:transparent; box-shadow:none; color:#5a5f70; font-size:14px; height:42px; }
+  /* --- modales parchemin + flou de fond --- */
+  #serment, #endscreen { backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
+  #serment .scard, #endscreen .ecard { box-shadow:0 14px 44px rgba(20,30,50,.35), inset 0 0 0 2px #e0d3b0; }
+  /* --- mini-tuto 1er tir --- */
+  #tuthint { position:fixed; left:50%; bottom:120px; transform:translateX(-50%); display:none; z-index:30; pointer-events:none;
+             background:rgba(42,47,69,.88); color:#fff; padding:12px 20px; border-radius:14px; font-weight:700; font-size:15px;
+             box-shadow:0 6px 20px rgba(0,0,0,.3); animation:popcount .3s ease; }
+  /* --- sélecteur de forteresses (campagne) --- */
+  #levels { position:fixed; inset:0; z-index:55; display:none; align-items:center; justify-content:center;
+            background:rgba(20,30,50,.5); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
+  #levels .lcard { background:#FFF6E3; padding:24px 26px; border-radius:18px; text-align:center; max-width:540px;
+                   box-shadow:0 14px 44px rgba(20,30,50,.35), inset 0 0 0 2px #e0d3b0; pointer-events:auto; }
+  #levels h3 { font-family:'Cinzel',serif; font-size:18px; color:#2a2f45; margin-bottom:16px; letter-spacing:1px; }
+  #lgrid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  .lvl { display:flex; align-items:center; gap:12px; text-align:left; padding:11px 13px; border:none; border-radius:12px; cursor:pointer;
+         background:#fff; box-shadow:0 2px 0 #d8cdae; font-family:'Inter',sans-serif; transition:transform .1s ease; }
+  .lvl:hover { transform:translateY(-2px); }
+  .lvl:active { transform:translateY(2px); box-shadow:0 1px 0 #d8cdae; }
+  .lvl .lnum { font-family:'Cinzel',serif; font-weight:800; font-size:20px; color:#fff; background:#8FA0AE; min-width:36px; height:36px;
+               border-radius:9px; display:flex; align-items:center; justify-content:center; }
+  .lvl.done .lnum { background:#7ec850; }
+  .lvl .lname { font-weight:700; font-size:14px; color:#2a2f45; line-height:1.2; }
+  .lvl .lmeta { font-size:11px; color:#8a7f66; margin-top:2px; }
+  #lclose { margin-top:16px; border:none; background:#e8dcc0; color:#2a2f45; font-weight:700; padding:10px 20px; border-radius:11px;
+            cursor:pointer; box-shadow:0 3px 0 #c9b896; font-family:'Inter',sans-serif; }
+  #lclose:active { transform:translateY(2px); box-shadow:0 1px 0 #c9b896; }
+  /* icônes SVG dans les fenêtres + boutons à libellé */
+  #serment button, #endscreen button, #lclose { display:inline-flex; align-items:center; justify-content:center; gap:7px; }
+  #serment button svg, #endscreen button svg, #lclose svg, #action svg, #siegeBtn svg { width:18px; height:18px; flex:none; }
+  #siegeBtn, #action { gap:7px; }
+  /* --- info matériau sous la palette --- */
+  #palhint { position:fixed; top:104px; left:50%; transform:translateX(-50%); display:none; pointer-events:none; z-index:20;
+             background:rgba(42,47,69,.86); color:#fff; padding:6px 14px; border-radius:11px; font-size:12.5px; font-weight:600;
+             white-space:nowrap; box-shadow:0 3px 12px rgba(0,0,0,.22); }
+  /* ===== ADAPTATION TÉLÉPHONE / PETITS ÉCRANS ===== */
+  @media (max-width:600px){
+    #title { font-size:15px; } #title small { display:none; }
+    #mode { font-size:12.5px; padding:5px 13px; top:10px; }
+    #shots { font-size:14px; top:12px; right:12px; }
+    #gloireHud { font-size:14px !important; }
+    #palette { top:46px; gap:5px; } #palette button { min-width:50px; height:50px; font-size:11px; }
+    #palhint { font-size:11px; top:100px; white-space:normal; max-width:92vw; text-align:center; line-height:1.3; }
+    #help { font-size:11px; max-width:46vw; padding:7px 9px; bottom:10px; left:10px; }
+    .btns { bottom:10px; right:10px; gap:6px; }
+    .btns button { height:46px; min-width:46px; font-size:13px; padding:0 11px; }
+    .btns button > span { display:none; }            /* sur mobile : icônes seules, plus compact */
+    #siegeBtn > span, #action > span { display:inline; } /* sauf les 2 actions principales (texte gardé) */
+    #power { width:200px; bottom:80px; }
+    #serment .scard, #endscreen .ecard { max-width:92vw; padding:18px 16px; }
+    #lgrid { grid-template-columns:1fr; } #levels .lcard { max-width:92vw; }
+    #home .home-btn { width:84vw; max-width:320px; }
+    #endTitle { font-size:30px; }
+  }
+  @media (max-width:600px) and (orientation:portrait){
+    #help { max-width:60vw; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="boot">Chargement de la 3D…</div>
+
+<div id="home"><div>
+  <div class="logo">BRÈCHE</div>
+  <div class="logo-sub">Bâtis · Scelle · Brise</div>
+  <button class="home-btn primary" id="homeBuild">🧱 Bâtir mon château</button>
+  <button class="home-btn" id="homeCampaign">🏰 Campagne — 7 forteresses</button>
+  <button class="home-btn home-ghost" id="homeContinue">↩ Reprendre la campagne</button>
+</div></div>
+
+<div id="levels"><div class="lcard">
+  <h3>🏰 CHOISIS TA FORTERESSE</h3>
+  <div id="lgrid"></div>
+  <button id="lclose">↩ Retour</button>
+</div></div>
+
+<div id="palhint"></div>
+<div id="tuthint">👋 Maintiens, <b>tire le boulet vers le bas</b>, puis relâche pour lancer !</div>
+<div class="hud" id="title">BRÈCHE <small>Bâtis · Protège le coffre · Brise</small></div>
+<div class="hud" id="mode">🧱 ATELIER</div>
+<div class="hud" id="shots" style="display:none">Tirs : 0</div>
+<div class="hud" id="gloireHud" style="top:16px;right:16px;display:none;font-weight:700;font-size:16px">⚜ Gloire 0</div>
+<div class="hud" id="help"></div>
+<div id="palette"></div>
+<div id="power"><i></i><span>FORCE</span></div>
+<div class="btns">
+  <span class="toolgrp">
+    <button id="rotL" title="Tourner à gauche" aria-label="Tourner à gauche"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/></svg></button>
+    <button id="rotR" title="Tourner à droite" aria-label="Tourner à droite"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg></button>
+    <button id="undo" title="Annuler la dernière pièce" aria-label="Annuler"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+  </span>
+  <button id="siegeBtn">🏰 Assiéger</button>
+  <button id="action">⚔️ Sceller &amp; Assaut</button>
+</div>
+<div id="msg"><b>BRÈCHE !</b></div>
+
+<div id="serment"><div class="scard">
+  <h3>⚜ LE SERMENT DU BÂTISSEUR ⚜</h3>
+  <canvas id="blason" width="120" height="142"></canvas>
+  <div class="sname" id="sName">—</div>
+  <div id="sGloire" style="font-size:13px;color:#a06a00;font-weight:700;margin-bottom:8px">⚜ Gloire : 0</div>
+  <div class="srow"><button id="rerollName">🎲 Nom</button><button id="rerollBlason">🎲 Blason</button></div>
+  <button id="swear" class="swear">✊ Prêter serment</button>
+  <div class="srow" style="margin-top:10px"><button id="share">🔗 Partager (lien)</button></div>
+  <div id="sStatus" style="font-size:12px;color:#2a8a4a;margin-top:8px;min-height:14px;max-width:240px"></div>
+</div></div>
+
+<div id="banner"><canvas id="bBlason" width="40" height="48"></canvas><div><b id="bName"></b><br><small id="bHold"></small></div></div>
+
+<div id="endscreen"><div class="ecard">
+  <div id="endTitle">🏆 BRÈCHE !</div>
+  <div id="endSub"></div>
+  <div class="erow">
+    <button id="replayBtn">↻ Rejouer l'assaut</button>
+    <button id="rebuildBtn">🔨 Bâtir un château</button>
+  </div>
+</div></div>
+
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "rapier": "https://esm.sh/@dimforge/rapier3d-compat@0.14.0",
+    "lzstring": "https://esm.sh/lz-string@1.5.0" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import RAPIER from 'rapier';
+import * as LZmod from 'lzstring';
+const LZString = LZmod.default || LZmod;
+
+const boot = document.getElementById('boot');
+try { await RAPIER.init(); boot.remove(); start(); }
+catch (e) { boot.innerHTML = "❌ 3D non chargée. Ouvre via http://localhost (Laragon).<br><br>"+e; console.error(e); }
+
+function start() {
+  const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // ===== JEU D'ICÔNES SVG (trait, hérite de la couleur du texte) =====
+  const svg = p => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
+  const ICONS = {
+    castle: svg('<path d="M3 21h18M5 21V10l2-1V7l2 1 1-1 1 1 2-1v2l2 1v11M10 21v-3a2 2 0 0 1 4 0v3"/>'),
+    hammer: svg('<path d="M15 6l3 3M9 12l6-6 3 3-6 6zM9 12l-5 5a1.4 1.4 0 0 0 2 2l5-5z"/>'),
+    flag:   svg('<path d="M6 21V4M6 4h11l-2.5 4L17 12H6"/>'),
+    replay: svg('<path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v4h-4"/>'),
+    next:   svg('<path d="M5 12h13M12 6l6 6-6 6"/>'),
+    dice:   svg('<rect x="4.5" y="4.5" width="15" height="15" rx="2.5"/><circle cx="9" cy="9" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="15" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="9" r="1.3" fill="currentColor" stroke="none"/><circle cx="9" cy="15" r="1.3" fill="currentColor" stroke="none"/>'),
+    link:   svg('<path d="M9 15l6-6M10.5 8.5l1-1a3.5 3.5 0 0 1 5 5l-1 1M13.5 15.5l-1 1a3.5 3.5 0 0 1-5-5l1-1"/>'),
+    back:   svg('<path d="M11 17l-5-5 5-5M6 12h13"/>'),
+  };
+  const scene = new THREE.Scene();
+  const skyCv=document.createElement('canvas'); skyCv.width=2; skyCv.height=256;     // ciel en dégradé
+  const sctx=skyCv.getContext('2d'); const sg=sctx.createLinearGradient(0,0,0,256);
+  sg.addColorStop(0,'#9FCDEA'); sg.addColorStop(1,'#FFF6E3'); sctx.fillStyle=sg; sctx.fillRect(0,0,2,256);
+  scene.background = new THREE.CanvasTexture(skyCv);
+  scene.fog = new THREE.Fog(0xDCEAF2, 24, 62);                                       // brume douce à l'horizon
+  const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 200);
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.06;  // ton chaud cinéma
+  document.getElementById('app').appendChild(renderer.domElement);
+
+  const sun = new THREE.DirectionalLight(0xffe9c2, 3.0); const sunBase=3.0;
+  sun.position.set(9,9,7); sun.castShadow=true; sun.shadow.mapSize.set(1024,1024);    // soleil bas = ombres longues
+  const s=12; Object.assign(sun.shadow.camera,{left:-s,right:s,top:s,bottom:-s,near:1,far:50});
+  scene.add(sun, new THREE.HemisphereLight(0xAED8F0,0x6b5a3a,0.55));                   // ombre bleutée vivante
+
+  const world = new RAPIER.World({ x:0, y:-9.81, z:0 });
+  const eventQueue = new RAPIER.EventQueue(true);
+  const colMap = new Map();    // collider.handle -> objet
+
+  const baseR = 6.5;
+  const baseMesh = new THREE.Mesh(new THREE.CylinderGeometry(baseR, baseR+0.4, 1, 48),
+                     new THREE.MeshStandardMaterial({ color:0x7fa86a, roughness:1 }));
+  baseMesh.position.y=-0.5; baseMesh.receiveShadow=true; scene.add(baseMesh);
+  const groundBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0,-0.5,0));
+  world.createCollider(RAPIER.ColliderDesc.cuboid(40,0.5,40)
+      .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), groundBody);
+  const planeRay = new THREE.Mesh(new THREE.PlaneGeometry(2*baseR,2*baseR),
+                     new THREE.MeshBasicMaterial({ visible:false }));
+  planeRay.rotation.x=-Math.PI/2; scene.add(planeRay);
+
+  // ---------- PIÈCES DE CHÂTEAU ----------
+  const COL = { stone:0x8FA0AE, wood:0xC98A3B, chest:0xF5C518, roof:0x8a3b3b };
+  const matStd = (c,o={}) => new THREE.MeshStandardMaterial(Object.assign({color:c},o));
+
+  // chaque pièce : visuel (Group), demi-extents du collider, densité, couleur (pour débris)
+  const PIECES = {
+    wall:  { label:'Mur',  icon:'🪨', trait:'PIERRE — lourde, encaisse les coups. La base solide.', half:[0.46,0.5,0.46], dens:3.0, fric:0.72, rest:0.03, color:COL.stone },
+    tower: { label:'Tour', icon:'🪨', trait:'PIERRE — haute et solide. Pour monter sans casser.',   half:[0.4,1.0,0.4],   dens:3.0, fric:0.72, rest:0.03, color:COL.stone },
+    towerW:{ label:'Tour bois', icon:'🪵', trait:'BOIS — légère, rapporte 2× de Gloire… mais ÉCLATE.', half:[0.4,1.0,0.4],   dens:0.45,fric:0.2,  rest:0.06, color:COL.wood },
+    beam:  { label:'Toit', icon:'🪵', trait:'BOIS — couvre le coffre (anneau vert). Fragile.',       half:[0.5,0.12,0.5],  dens:0.45,fric:0.2,  rest:0.06, color:COL.wood },
+    chest: { label:'Coffre', icon:'🏆', trait:'', half:[0.45,0.35,0.45],dens:1.6, fric:0.4, rest:0.05, color:COL.chest },
+    pedestal:{label:'Socle', icon:'🪨', trait:'', half:[0.5,0.6,0.5],   dens:3.0, fric:0.7, rest:0.02, color:COL.stone },
+  };
+  function makeVisual(type) {
+    const g = new THREE.Group();
+    const add = (geo,mat,x,y,z) => { const m=new THREE.Mesh(geo,mat); m.castShadow=m.receiveShadow=true;
+                                     m.position.set(x,y,z); g.add(m); return m; };
+    if (type==='wall') {
+      add(new THREE.BoxGeometry(0.92,1.0,0.92), matStd(COL.stone,{roughness:.95}), 0,0,0);
+      for (const x of [-0.3,0,0.3]) add(new THREE.BoxGeometry(0.22,0.26,0.92), matStd(COL.stone,{roughness:.95}), x,0.62,0); // créneaux
+    } else if (type==='tower' || type==='towerW') {
+      const bc = type==='towerW'?COL.wood:COL.stone;
+      add(new THREE.BoxGeometry(0.8,2.0,0.8), matStd(bc,{roughness:.9}), 0,0,0);
+      for (const [x,z] of [[-.28,-.28],[.28,-.28],[-.28,.28],[.28,.28]])
+        add(new THREE.BoxGeometry(0.2,0.26,0.2), matStd(bc,{roughness:.9}), x,1.12,z);
+      add(new THREE.ConeGeometry(0.62,0.7,4), matStd(COL.roof,{roughness:.8}), 0,1.45,0).rotation.y=Math.PI/4; // toit
+    } else if (type==='beam') {   // le Toit : planche large pour couvrir le coffre
+      add(new THREE.BoxGeometry(0.98,0.24,0.98), matStd(COL.wood,{roughness:.85}), 0,0,0);
+      for(const x of [-0.32,0,0.32]) add(new THREE.BoxGeometry(0.26,0.27,0.98), matStd(0xb87a2f,{roughness:.85}), x,0.01,0);
+    } else if (type==='pedestal') {   // socle qui porte le coffre perché
+      add(new THREE.BoxGeometry(1.0,1.2,1.0), matStd(COL.stone,{roughness:.95}), 0,0,0);
+    } else { // chest
+      add(new THREE.BoxGeometry(0.9,0.7,0.9), matStd(COL.chest,{emissive:0x6a5200,emissiveIntensity:.5,metalness:.5,roughness:.35}), 0,0,0);
+    }
+    return g;
+  }
+
+  let blocks = [], chest = null;
+  function addPiece(type, x, y, z, q) {
+    const P = PIECES[type], h = P.half;
+    const group = makeVisual(type); group.position.set(x,y,z); scene.add(group);
+    const rbd = RAPIER.RigidBodyDesc.dynamic().setTranslation(x,y,z); if(q) rbd.setRotation(q);
+    const body = world.createRigidBody(rbd);
+    const col = world.createCollider(RAPIER.ColliderDesc.cuboid(h[0],h[1],h[2])
+        .setDensity(P.dens).setFriction(P.fric).setRestitution(P.rest)
+        .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), body);
+    const obj = { group, body, type, half:h, color:P.color, pop:1, placedGlow:0 };
+    colMap.set(col.handle, obj); blocks.push(obj);
+    if (type==='chest') { if (chest) removeBlock(chest); chest = obj; }
+    return obj;
+  }
+  function removeBlock(o){ world.removeRigidBody(o.body); scene.remove(o.group);
+                           blocks = blocks.filter(b=>b!==o); if (o===chest) chest=null; }
+
+  // ---------- GUIDAGE : but (anneau) + emplacements fantômes ----------
+  const ringMat = new THREE.MeshBasicMaterial({ color:0xF5C518, transparent:true, opacity:.5, side:THREE.DoubleSide });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.85,1.15,40), ringMat);
+  ring.rotation.x=-Math.PI/2; ring.position.y=0.03; ring.visible=false; scene.add(ring);
+  // --- PICTOS (repères non-colorés pour daltoniens) : ✓ atteint / ✕ exposé ---
+  function markSprite(kind,color){ const c=document.createElement('canvas'); c.width=c.height=72; const x=c.getContext('2d');
+    x.fillStyle='rgba(255,255,255,.88)'; x.beginPath(); x.arc(36,36,30,0,7); x.fill();
+    x.strokeStyle=color; x.lineWidth=9; x.lineCap='round'; x.lineJoin='round'; x.beginPath();
+    if(kind==='check'){ x.moveTo(20,38); x.lineTo(31,50); x.lineTo(54,23); }
+    else { x.moveTo(25,25); x.lineTo(47,47); x.moveTo(47,25); x.lineTo(25,47); }
+    x.stroke();
+    const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
+    s.scale.set(0.7,0.7,0.7); s.visible=false; scene.add(s); return s; }
+  const aimMark=markSprite('check','#1c7a3a'), covMark=markSprite('check','#1c7a3a'), openMark=markSprite('cross','#c25a2a');
+  // --- HALO DE STABILITÉ : anneaux au sol sous chaque pièce (vert=stable, rouge=bancal) ---
+  const stabRings=[];
+  for(let i=0;i<14;i++){ const r=new THREE.Mesh(new THREE.RingGeometry(0.5,0.74,28),
+      new THREE.MeshBasicMaterial({color:0x7ec850, transparent:true, opacity:0, side:THREE.DoubleSide, depthWrite:false}));
+    r.rotation.x=-Math.PI/2; r.position.y=0.05; r.visible=false; scene.add(r); stabRings.push(r); }
+  function updateStability(dt){ let ri=0;
+    if(mode==='build'){
+      for(const b of blocks){ if(b===chest||b.type==='pedestal'||ri>=stabRings.length) continue;
+        const lv=b.body.linvel(), av=b.body.angvel();
+        const sp=Math.hypot(lv.x,lv.y,lv.z)+Math.hypot(av.x,av.y,av.z)*0.25;
+        const q=b.body.rotation(), uy=1-2*(q.x*q.x+q.z*q.z);   // ~1 = bien droit, <1 = penché
+        const unstable = sp>0.4 || uy<0.93;
+        if(b.placedGlow>0) b.placedGlow=Math.max(0,b.placedGlow-dt);   // confirmation verte (~1,2 s)
+        if(unstable || b.placedGlow>0){ const t=b.body.translation(); const r=stabRings[ri++];
+          r.position.set(t.x, Math.max(0.05, t.y - b.half[1] + 0.06), t.z); r.visible=true;
+          if(unstable){ r.material.color.setHex(0xff3b2f); r.material.opacity=0.6+0.35*Math.sin(tNow*9); r.scale.setScalar(1.1+0.08*Math.sin(tNow*9)); }
+          else { r.material.color.setHex(0x29d24d); r.material.opacity=Math.min(0.78,b.placedGlow); r.scale.setScalar(1+(1.2-b.placedGlow)*0.18); }
+        } }
+    }
+    for(let i=ri;i<stabRings.length;i++) stabRings[i].visible=false; }
+  let slots = [];
+  function buildSlots(){ clearSlots();
+    for(const [x,z] of [[1,1],[-1,1],[1,-1],[-1,-1]]){
+      const g = makeVisual('tower');
+      g.traverse(o=>{ if(o.material){ o.material.transparent=true; o.material.opacity=0.16; } if(o.isMesh) o.castShadow=false; });
+      g.position.set(x, PIECES.tower.half[1], z); scene.add(g); slots.push({x,z,mesh:g,filled:false}); } }
+  function clearSlots(){ for(const s of slots) scene.remove(s.mesh); slots=[]; }
+  function isOpenSlot(x,z){ return slots.some(s=>!s.filled && s.x===x && s.z===z); }
+  function chestCovered(){ if(!chest) return false; const c=chest.body.translation();
+    return blocks.some(b=> b!==chest && b.group.position.y>c.y+0.3 && Math.abs(b.group.position.x-c.x)<1 && Math.abs(b.group.position.z-c.z)<1); }
+  let lastGloire=-1;
+  const popEl=el=>{ if(REDUCE||!el)return; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); };
+  function updateGuidance(){
+    for(const s of slots){
+      if(!s.filled && blocks.some(b=> b!==chest && Math.round(b.group.position.x)===s.x && Math.round(b.group.position.z)===s.z)){
+        s.filled=true; s.mesh.visible=false; }
+      if(!s.filled) s.mesh.traverse(o=>{ if(o.material) o.material.opacity = 0.10+0.07*Math.sin(tNow*3); });
+    }
+    if(mode==='build' && chest){ const c=chest.body.translation(); ring.position.set(c.x,0.03,c.z); ring.visible=true;
+      const cov=chestCovered(); ringMat.color.setHex(cov?0x7ec850:0xe0653c); ringMat.opacity = 0.35+0.2*Math.sin(tNow*3);
+      covMark.position.set(c.x, c.y+1.0, c.z); covMark.visible=cov;
+      openMark.position.set(c.x, c.y+1.0, c.z); openMark.visible=!cov; }
+    else { ring.visible=false; covMark.visible=false; openMark.visible=false; }
+    if(mode==='build'){ const gv=computeGloire(); if(gv!==lastGloire){ lastGloire=gv; popEl(gloireHud); } gloireHud.textContent='⚜ Gloire '+gv;
+      actionBtn.disabled = blocks.filter(b=>b!==chest&&b.type!=='pedestal').length===0; }
+  }
+
+  // ---------- CAMÉRA DIORAMA ----------
+  const target = new THREE.Vector3(0,2,0);
+  const elevation=0.42, distance=13;
+  let azimuth=0.5, targetAzimuth=0.5, shake=0;
+  function rotate(d){ targetAzimuth += d*Math.PI/6; }
+  function updateCamera(dt){
+    azimuth += (targetAzimuth-azimuth)*0.15;
+    const k = shake>0 ? shake*(REDUCE?0.25:1) : 0;
+    camera.position.set(
+      target.x + distance*Math.cos(elevation)*Math.sin(azimuth) + (Math.random()-.5)*k,
+      target.y + distance*Math.sin(elevation) + (Math.random()-.5)*k,
+      target.z + distance*Math.cos(elevation)*Math.cos(azimuth));
+    camera.lookAt(target);
+    if (shake>0) shake = Math.max(0, shake - dt*2.4);
+  }
+
+  // ---------- AUDIO (synthétisé, zéro fichier) — bus maître + réverbération ----------
+  let actx=null, master=null, reverb=null; const AC = window.AudioContext||window.webkitAudioContext;
+  function audio(){
+    if(!actx){ actx=new AC();
+      master=actx.createGain(); master.gain.value=0.85; master.connect(actx.destination);
+      // petite réverb (impulsion générée) = profondeur, ça sonne moins "bip"
+      reverb=actx.createConvolver(); const len=Math.floor(actx.sampleRate*1.0), buf=actx.createBuffer(2,len,actx.sampleRate);
+      for(let ch=0;ch<2;ch++){ const d=buf.getChannelData(ch); for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3); }
+      reverb.buffer=buf; const rg=actx.createGain(); rg.gain.value=0.9; reverb.connect(rg).connect(master); }
+    if(actx.state==='suspended') actx.resume(); return actx; }
+  function blip(f,d,type='sine',vol=.2,wet=0,f2=null){ const a=audio(),o=a.createOscillator(),g=a.createGain();
+    o.type=type; o.frequency.setValueAtTime(f,a.currentTime); if(f2) o.frequency.exponentialRampToValueAtTime(f2,a.currentTime+d);
+    g.gain.value=vol; o.connect(g); g.connect(master); if(wet>0){ const w=a.createGain(); w.gain.value=wet; g.connect(w).connect(reverb); }
+    o.start(); g.gain.exponentialRampToValueAtTime(.001,a.currentTime+d); o.stop(a.currentTime+d); }
+  function noise(d,vol=.3,cut=1200,wet=0){ const a=audio(),n=Math.floor(a.sampleRate*d),buf=a.createBuffer(1,n,a.sampleRate),dt=buf.getChannelData(0);
+    for(let i=0;i<n;i++) dt[i]=(Math.random()*2-1)*(1-i/n);
+    const src=a.createBufferSource(); src.buffer=buf; const g=a.createGain(); g.gain.value=vol;
+    const f=a.createBiquadFilter(); f.type='lowpass'; f.frequency.value=cut;
+    src.connect(f).connect(g); g.connect(master); if(wet>0){ const w=a.createGain(); w.gain.value=wet; g.connect(w).connect(reverb); }
+    src.start(); }
+  const sndPlace  = ()=>{ blip(170,.05,'square',.07); blip(440,.03,'sine',.035); };           // "tok" boisé
+  const sndSelect = ()=> blip(620,.04,'sine',.05,.05);                                          // tic d'interface
+  const sndThud   = ()=>{ noise(.15,.14,650,.10); blip(72,.18,'sine',.13,.18,52); blip(120,.10,'triangle',.05); }; // pierre lourde
+  const sndCrack  = ()=>{ noise(.13,.22,3200,.10); noise(.18,.10,1500,.06); blip(300,.06,'square',.08,.12); };     // bois qui éclate
+  const sndLaunch = ()=>{ const a=audio(),n=Math.floor(a.sampleRate*.3),buf=a.createBuffer(1,n,a.sampleRate),d=buf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n); const src=a.createBufferSource(); src.buffer=buf;
+    const f=a.createBiquadFilter(); f.type='bandpass'; f.Q.value=1.1; f.frequency.setValueAtTime(280,a.currentTime); f.frequency.exponentialRampToValueAtTime(1500,a.currentTime+.26);
+    const g=a.createGain(); g.gain.value=.11; g.gain.exponentialRampToValueAtTime(.001,a.currentTime+.3);
+    src.connect(f).connect(g).connect(master); src.start(); };                                  // souffle du lancer
+  const sndWin    = ()=>{ blip(196,.6,'sine',.08,.3,98);                                         // grave qui gonfle
+    [523,659,784,1046,1318].forEach((f,i)=>setTimeout(()=>blip(f,.24,'triangle',.13,.3),i*100)); }; // fanfare
+
+  // ---------- PARTICULES ----------
+  const particles = [];
+  const dustGeo = new THREE.BoxGeometry(.16,.16,.16);
+  function spawnDust(x,y,z,n){ if(particles.length>240) return;
+    for(let i=0;i<n;i++){ const m=new THREE.Mesh(dustGeo, new THREE.MeshBasicMaterial({color:0xE8DCC0,transparent:true,opacity:.6}));
+      m.position.set(x,y,z); scene.add(m);
+      particles.push({m, vx:(Math.random()-.5)*1.6, vy:Math.random()*1.4, vz:(Math.random()-.5)*1.6, life:.7, max:.7, g:0, grow:1.7}); } }
+  function spawnDebris(x,y,z,color,n){ if(particles.length>240) return;
+    for(let i=0;i<n;i++){ const m=new THREE.Mesh(new THREE.BoxGeometry(.15,.15,.15), matStd(color));
+      m.castShadow=true; m.position.set(x,y,z); scene.add(m);
+      const a=Math.random()*Math.PI*2, sp=2+Math.random()*3.5;
+      particles.push({m, vx:Math.cos(a)*sp, vy:2.5+Math.random()*3, vz:Math.sin(a)*sp, life:.7, max:.7, g:-10, grow:0, spin:(Math.random()-.5)*.4}); } }
+  function updateParticles(dt){
+    for(let i=particles.length-1;i>=0;i--){ const p=particles[i]; p.life-=dt;
+      if(p.life<=0){ scene.remove(p.m); particles.splice(i,1); continue; }
+      p.vy += p.g*dt; p.m.position.x+=p.vx*dt; p.m.position.y+=p.vy*dt; p.m.position.z+=p.vz*dt;
+      if(p.grow) p.m.scale.multiplyScalar(1+p.grow*dt);
+      if(p.spin) p.m.rotation.x+=p.spin, p.m.rotation.y+=p.spin;
+      if(p.m.material.transparent) p.m.material.opacity = .6*(p.life/p.max); } }
+
+  // ---------- TIR ----------
+  let projectiles=[], shots=0; const shotsEl=document.getElementById('shots');
+  const traj = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({color:0xffffff,dashSize:.35,gapSize:.25}));
+  traj.visible=false; scene.add(traj);
+  // --- CATAPULTE visible (matérialise d'où part le tir et l'arme qu'on charge) ---
+  const wood=(c)=>matStd(c,{roughness:.9});
+  const treb=new THREE.Group();
+  const tBase=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.45,1.2), wood(0x6b4a2a)); tBase.position.y=0.22; tBase.castShadow=true;
+  const tA1=new THREE.Mesh(new THREE.BoxGeometry(0.18,1.4,0.18), wood(0x5a3f24)); tA1.position.set(0,0.95,0.35); tA1.rotation.x=0.3; tA1.castShadow=true;
+  const tA2=tA1.clone(); tA2.position.z=-0.35; tA2.rotation.x=-0.3;
+  const tPivot=new THREE.Group(); tPivot.position.set(0,1.1,0);
+  const tArm=new THREE.Mesh(new THREE.BoxGeometry(0.18,2.6,0.18), wood(0x9a7642)); tArm.position.y=0.75; tArm.castShadow=true; tPivot.add(tArm);
+  const tCup=new THREE.Mesh(new THREE.CylinderGeometry(0.36,0.28,0.34,14,1,true), matStd(0x5a3f24,{side:THREE.DoubleSide,roughness:.9})); tCup.position.y=2.0; tPivot.add(tCup);
+  const tBall=new THREE.Mesh(new THREE.SphereGeometry(0.32,14,14), matStd(0x3a3330,{roughness:.6})); tBall.position.y=2.05; tBall.castShadow=true; tPivot.add(tBall);
+  const tCW=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.55,0.55), matStd(0x4a4a4a,{metalness:.3})); tCW.position.y=-0.7; tCW.castShadow=true; tPivot.add(tCW);
+  treb.add(tBase,tA1,tA2,tPivot); treb.visible=false; treb.scale.setScalar(1.2); scene.add(treb);
+  // bande élastique (lance-pierre) : 2 brins des fourches vers le boulet, jaune→rouge selon la tension
+  const elasMat=new THREE.LineBasicMaterial({color:0xf5c518});
+  const elas1=new THREE.Line(new THREE.BufferGeometry(),elasMat), elas2=new THREE.Line(new THREE.BufferGeometry(),elasMat.clone());
+  elas1.visible=elas2.visible=false; scene.add(elas1,elas2);
+  const _v1=new THREE.Vector3(),_v2=new THREE.Vector3(),_vb=new THREE.Vector3(),_cE=new THREE.Color(),_cR=new THREE.Color(0xe0653c);
+  function updateTreb(){
+    if(mode!=='assault'){ treb.visible=false; elas1.visible=elas2.visible=false; return; }
+    const camDir=new THREE.Vector3().subVectors(target,camera.position); camDir.y=0; camDir.normalize();
+    treb.position.copy(target).addScaledVector(camDir,-5.4); treb.position.y=0;
+    treb.rotation.y=Math.atan2(camDir.x,camDir.z);
+    const pw=(currentPower-POW_MIN)/(POW_MAX-POW_MIN);
+    if(aiming){ tPivot.rotation.x = -(0.25 + pw*1.2); }                 // plus on charge, plus le bras s'arme EN ARRIÈRE
+    else { tPivot.rotation.x += (-0.3 - tPivot.rotation.x)*0.25; }      // retour (fouet) au repos
+    tBall.visible = aiming && !won && !held;
+    treb.updateWorldMatrix(true,true);
+    if(aiming && !won && !held){
+      tA1.getWorldPosition(_v1); tA2.getWorldPosition(_v2); tBall.getWorldPosition(_vb);
+      elas1.geometry.setFromPoints([_v1,_vb]); elas2.geometry.setFromPoints([_v2,_vb]);
+      _cE.set(0xf5c518).lerp(_cR, pw); elasMat.color.copy(_cE); elas2.material.color.copy(_cE);
+      elas1.visible=elas2.visible=true;
+    } else { elas1.visible=elas2.visible=false; }
+    treb.visible=true; }
+  const impactRing = new THREE.Mesh(new THREE.RingGeometry(0.28,0.42,24),
+    new THREE.MeshBasicMaterial({color:0xffffff, side:THREE.DoubleSide, transparent:true, opacity:.9}));
+  impactRing.visible=false; scene.add(impactRing);
+  // --- BALISE DE CIBLE : flèche dorée qui flotte au-dessus du coffre (« vise ICI ») ---
+  const beacon=new THREE.Mesh(new THREE.ConeGeometry(0.34,0.7,4),
+    new THREE.MeshBasicMaterial({color:0xF5C518})); beacon.rotation.x=Math.PI; beacon.visible=false; scene.add(beacon);
+  function updateBeacon(){
+    if(mode==='assault' && chest && !won && !held){ const t=chest.body.translation();
+      beacon.position.set(t.x, t.y + 1.5 + 0.18*Math.sin(tNow*3.5), t.z);
+      beacon.rotation.y = tNow*1.5; beacon.visible=true;
+    } else beacon.visible=false; }
+  const trajRay = new THREE.Raycaster();
+  function launchParams(power, e){            // e = élévation variable (visée)
+    const camDir=new THREE.Vector3().subVectors(target,camera.position); camDir.y=0; camDir.normalize();
+    const origin=new THREE.Vector3().copy(target).addScaledVector(camDir,-9.5); origin.y=2.4;  // origine plus basse
+    const dir=new THREE.Vector3(camDir.x*Math.cos(e),Math.sin(e),camDir.z*Math.cos(e)).normalize();
+    return { origin, vel:dir.multiplyScalar(power) }; }
+  function updateTraj(power, e){ const {origin,vel}=launchParams(power,e); const pts=[],dt=.05; let p=origin.clone(),v=vel.clone(),hit=null;
+    for(let i=0;i<120;i++){ pts.push(p.clone()); const prev=p.clone(); v.y+=-9.81*dt; p=p.clone().addScaledVector(v,dt);
+      const seg=new THREE.Vector3().subVectors(p,prev), len=seg.length(); trajRay.set(prev, seg.clone().normalize());
+      const h=trajRay.intersectObjects(blocks.map(b=>b.group), true);
+      if(h.length && h[0].distance<=len){ pts.push(h[0].point.clone()); hit=h[0].point.clone(); break; }
+      if(p.y<0){ hit=p.clone(); break; } }
+    traj.geometry.setFromPoints(pts); traj.computeLineDistances(); traj.visible=true;
+    impactRing.visible=!!hit; let onTarget=false;
+    if(hit){ impactRing.position.copy(hit); impactRing.lookAt(camera.position);
+      const ct=chest?chest.body.translation():{x:99,y:99,z:99};
+      onTarget = Math.hypot(hit.x-ct.x,hit.y-ct.y,hit.z-ct.z)<0.85;
+      impactRing.material.color.setHex(onTarget?0x7ec850:0xffffff); }
+    aimMark.visible=onTarget; if(onTarget){ aimMark.position.copy(hit); aimMark.position.y+=0.45; } }
+  function fire(power, e){ const {origin,vel}=launchParams(power,e);
+    const m=new THREE.Mesh(new THREE.SphereGeometry(.45,18,18), matStd(0x3a3330,{roughness:.6}));
+    m.castShadow=true; m.position.copy(origin); scene.add(m);
+    const body=world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(origin.x,origin.y,origin.z));
+    const col=world.createCollider(RAPIER.ColliderDesc.ball(.45).setDensity(12).setFriction(.3).setRestitution(.35)
+        .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS), body);
+    body.setLinvel({x:vel.x,y:vel.y,z:vel.z}, true);
+    const obj={ group:m, body, kind:'proj', color:0x3a3330 }; colMap.set(col.handle,obj); projectiles.push(obj);
+    if(projectiles.length>5){ const o=projectiles.shift(); world.removeRigidBody(o.body); scene.remove(o.group); }
+    sndLaunch(); shake=Math.max(shake,.08); tPivot.rotation.x=0.7; }   // la catapulte fouette vers l'avant
+
+  // ---------- VICTOIRE ----------
+  let won=false, hitStop=0, held=false, assessTimer=0, shotsLeft=4, MAX_SHOTS=4;
+  let chestHome={x:0,y:0,z:0};
+  const msgEl=document.getElementById('msg');
+  function flash(t){ msgEl.firstElementChild.textContent=t; msgEl.style.display='flex'; setTimeout(()=>msgEl.style.display='none',2000); }
+  function checkWin(){ if(mode!=='assault'||won||held||!chest) return;
+    const t=chest.body.translation();
+    const horiz=Math.hypot(t.x-chestHome.x, t.z-chestHome.z);
+    // VICTOIRE = le coffre a CHUTÉ de son perchoir OU a été ÉJECTÉ sur le côté
+    if(t.y < chestHome.y - 0.7 || t.y < -0.4 || horiz > 1.0){ won=true; hitStop=0.08; shake=.42;
+      spawnDust(t.x,t.y,t.z,8); spawnDebris(t.x,t.y,t.z,COL.chest,6); sndWin(); flash('BRÈCHE !'); sun.intensity=5.5;
+      setTimeout(()=>{ if(won) showEnd(true); }, 1300); } }
+
+  // ---------- IDENTITÉ : Serment (nom + blason héraldique) ----------
+  const pick = a => a[Math.floor(Math.random()*a.length)];
+  const NAMES = {
+    type:['Donjon','Bastion','Rempart','Citadelle','Fort','Tour','Roche','Beffroi','Châtel'],
+    pre:['Fen','Bel','Clair','Aigue','Pierre','Cendre','Aube','Gris','Haut','Bren','Cor','Dun','Roc','Mor','Val'],
+    suf:['roc','mont','val','fort','bourg','garde','combe','lac','lande','vaux','nesse'] };
+  const genName = () => `${pick(NAMES.type)} de ${pick(NAMES.pre)}${pick(NAMES.suf)}`;
+  const BL = { champ:['shield','round'], part:['plain','pale','fess','bend','cross'],
+    charge:['tower','star','cross','lozenge','crescent'],
+    metals:['#F5C518','#FFF6E3'], colors:['#8FA0AE','#C98A3B','#5B6670','#7a3b3b','#3b6a7a','#4a7a3b'] };
+  function genBlason(){ const metalField=Math.random()<.5;   // règle de tincture : clair sur foncé
+    return { champ:pick(BL.champ), part:pick(BL.part), charge:pick(BL.charge),
+             field: metalField?pick(BL.metals):pick(BL.colors), ord: metalField?pick(BL.colors):pick(BL.metals) }; }
+  function shieldPath(ctx,W,H){ if(BLcur.champ==='round'){ ctx.arc(W/2,H/2,W*0.42,0,7); return; }
+    const m=W*0.1,t=H*0.08; ctx.moveTo(m,t); ctx.lineTo(W-m,t); ctx.lineTo(W-m,H*0.55);
+    ctx.quadraticCurveTo(W-m,H*0.92,W/2,H-t); ctx.quadraticCurveTo(m,H*0.92,m,H*0.55); ctx.closePath(); }
+  let BLcur=null;
+  function drawBlason(cv,b){ BLcur=b; const ctx=cv.getContext('2d'),W=cv.width,H=cv.height; ctx.clearRect(0,0,W,H);
+    ctx.save(); ctx.beginPath(); shieldPath(ctx,W,H); ctx.fillStyle=b.field; ctx.fill(); ctx.clip();
+    ctx.fillStyle=b.ord;
+    if(b.part==='pale') ctx.fillRect(W*0.4,0,W*0.2,H);
+    else if(b.part==='fess') ctx.fillRect(0,H*0.4,W,H*0.2);
+    else if(b.part==='bend'){ ctx.save(); ctx.translate(W/2,H/2); ctx.rotate(-0.7); ctx.fillRect(-W,-W*0.09,2*W,W*0.18); ctx.restore(); }
+    else if(b.part==='cross'){ ctx.fillRect(W*0.42,0,W*0.16,H); ctx.fillRect(0,H*0.38,W,H*0.16); }
+    const cx=W/2,cy=H*0.5,r=W*0.15; ctx.fillStyle=b.ord;
+    if(b.charge==='tower'){ ctx.fillRect(cx-r*0.7,cy-r,r*1.4,r*2.1); for(let i=-1;i<=1;i++) ctx.fillRect(cx+i*r*0.5-r*0.16,cy-r-r*0.4,r*0.32,r*0.4); }
+    else if(b.charge==='lozenge'){ ctx.beginPath(); ctx.moveTo(cx,cy-r*1.3); ctx.lineTo(cx+r,cy); ctx.lineTo(cx,cy+r*1.3); ctx.lineTo(cx-r,cy); ctx.closePath(); ctx.fill(); }
+    else if(b.charge==='cross'){ ctx.fillRect(cx-r*0.3,cy-r*1.2,r*0.6,r*2.4); ctx.fillRect(cx-r*1.1,cy-r*0.3,r*2.2,r*0.6); }
+    else if(b.charge==='crescent'){ ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.fill(); ctx.globalCompositeOperation='destination-out'; ctx.beginPath(); ctx.arc(cx+r*0.55,cy,r,0,7); ctx.fill(); ctx.globalCompositeOperation='source-over'; }
+    else { ctx.beginPath(); for(let i=0;i<10;i++){ const a=Math.PI/5*i-Math.PI/2, rr=i%2?r*0.45:r*1.1; ctx[i?'lineTo':'moveTo'](cx+Math.cos(a)*rr,cy+Math.sin(a)*rr);} ctx.closePath(); ctx.fill(); }
+    ctx.restore();
+    ctx.save(); ctx.beginPath(); shieldPath(ctx,W,H); ctx.lineWidth=3; ctx.strokeStyle='#2a2f45'; ctx.stroke(); ctx.restore(); }
+
+  const castle = { name:genName(), blason:genBlason(), tenu:0, gloire:0 };
+  const BARKS = { win:['La bannière adverse cède !','Brèche ouverte !','Bien visé, sire.'],
+    place:['Bien posé.','Ça monte, sire.'] };
+  const TITRES = { 1:['Premier-Debout','Pierre-Neuve'], 3:["L'Entêté",'La Muraille qui rit'],
+    7:["L'Inébranlable",'Le Brise-Trébuchet'], 15:['Quinze-Hivers-Debout','Légende de pierre'] };
+  function titreGloire(tenu){ let p=0; for(const k of [1,3,7,15]) if(tenu>=k) p=k; return p?pick(TITRES[p]):''; }
+  const sermentEl=document.getElementById('serment'), bannerEl=document.getElementById('banner');
+  function refreshSerment(){ document.getElementById('sName').textContent=castle.name; drawBlason(document.getElementById('blason'),castle.blason); }
+  function openSerment(){ audio(); castle.name=genName(); castle.blason=genBlason(); castle.tenu=0; refreshSerment();
+    document.getElementById('sGloire').textContent='⚜ Gloire : '+computeGloire(); sermentEl.style.display='flex'; }
+  document.getElementById('rerollName').onclick=()=>{ castle.name=genName(); refreshSerment(); };
+  document.getElementById('rerollBlason').onclick=()=>{ castle.blason=genBlason(); refreshSerment(); };
+  document.getElementById('swear').onclick=()=>{ siegeIndex=-1; sermentEl.style.display='none'; sndPlace(); toAssault(); };
+  document.getElementById('share').onclick=()=>{ const link=makeLink();
+    if(navigator.clipboard) navigator.clipboard.writeText(link).catch(()=>{});
+    try{ history.replaceState(null,'',link); }catch(e){}
+    document.getElementById('sStatus').textContent="✅ Lien copié ! Colle-le à un ami pour qu'il assiège ton château."; };
+  function showBanner(){ const ti=titreGloire(castle.tenu);
+    document.getElementById('bName').textContent=(ti?('« '+ti+' » '):'')+castle.name;
+    document.getElementById('bHold').textContent=castle.tenu+' assaut'+(castle.tenu>1?'s':'')+' repoussé'+(castle.tenu>1?'s':'')+' · ⚜ '+castle.gloire;
+    drawBlason(document.getElementById('bBlason'),castle.blason); bannerEl.style.display='flex'; }
+  function updateShotsHUD(){ shotsEl.textContent='Tirs : '+'●'.repeat(shotsLeft)+'○'.repeat(MAX_SHOTS-shotsLeft); popEl(shotsEl); }
+  const gloireHud=document.getElementById('gloireHud');
+  function computeGloire(){ let g=0; for(const b of blocks){ if(b===chest) continue;
+    const woodX = (b.type==='towerW'||b.type==='beam')?2:1;   // le bois (risqué) rapporte le double
+    g += Math.max(0,b.group.position.y)*woodX; } if(chestCovered()) g+=4; return Math.round(g*4); }
+  function updateAssault(dt){ if(assessTimer>0){ assessTimer-=dt;
+    if(assessTimer<=0 && !won){ held=true; castle.tenu++; showBanner(); flash('IL A TENU ! ⚔');
+      setTimeout(()=>{ if(held&&!won) showEnd(false); }, 1300); } } }
+  // ---------- ÉCRAN DE FIN + REJOUER ----------
+  let assaultSnapshot=null;
+  const endEl=document.getElementById('endscreen');
+  function showEnd(v){ const et=document.getElementById('endTitle'), es=document.getElementById('endSub');
+    if(v){ const used=MAX_SHOTS-shotsLeft, n=used<=1?3:used<=2?2:1; et.textContent='🏆 BRÈCHE !';
+      let rec=''; try{ const k='breche:best:'+castle.name, prev=+localStorage.getItem(k)||99;
+        if(used<prev){ localStorage.setItem(k,used); rec=' 🏅 Record !'; } else rec=' · record : '+prev; }catch(e){}
+      es.innerHTML='<div style="font-size:30px;letter-spacing:5px;color:#f5c518;margin-bottom:6px">'+'★'.repeat(n)
+        +'<span style="opacity:.28">'+'★'.repeat(3-n)+'</span></div>'+pick(BARKS.win)+' <small>('+used+' tir'+(used>1?'s':'')+rec+')</small>';
+    } else { const ti=titreGloire(castle.tenu); et.textContent='🛡️ IL A TENU !';
+      es.innerHTML=(ti?'« <b>'+ti+'</b> » — ':'')+castle.name+" n'a pas tremblé.<br><small>⚜ Gloire "+castle.gloire+' · '+castle.tenu+' repoussé'+(castle.tenu>1?'s':'')+'</small>'; }
+    const rb=document.getElementById('replayBtn');
+    if(v && siegeIndex>=0){     // campagne : on a pris une forteresse
+      campaign=Math.max(campaign, siegeIndex+1); try{localStorage.setItem('breche:campaign',campaign);}catch(e){}
+      if(siegeIndex+1 < GRAINES.length){ rb.innerHTML=ICONS.next+'<span>Forteresse suivante</span>'; rb.onclick=()=>{ endEl.style.display='none'; startSiege(siegeIndex+1); }; }
+      else { es.innerHTML+='<br><b>🎉 Toutes les forteresses sont tombées !</b>'; rb.innerHTML=ICONS.replay+'<span>Rejouer</span>'; rb.onclick=replayAssault; }
+    } else { rb.innerHTML = ICONS.replay+'<span>'+(v?"Rejouer l'assaut":'Réessayer')+'</span>'; rb.onclick=replayAssault; }
+    endEl.style.display='flex'; }
+  function replayAssault(){ endEl.style.display='none'; if(assaultSnapshot) loadCastle(assaultSnapshot); else toBuild(); }
+  document.getElementById('replayBtn').onclick=replayAssault;
+  document.getElementById('rebuildBtn').onclick=()=>{ endEl.style.display='none'; toBuild(); };
+
+  // ---------- J3 : partage du château par lien ----------
+  const TYPES=['wall','tower','beam','chest','towerW','pedestal']; const TI={}; TYPES.forEach((t,i)=>TI[t]=i);
+  const r2=n=>Math.round(n*100)/100;
+  function serialize(){
+    const b=blocks.filter(x=>x!==chest).map(x=>{ const t=x.body.translation(), q=x.body.rotation();
+      return [TI[x.type], r2(t.x),r2(t.y),r2(t.z), r2(q.x),r2(q.y),r2(q.z),r2(q.w)]; });
+    const ct=chest?chest.body.translation():{x:0,y:0.35,z:0};
+    return { v:1, name:castle.name, bl:castle.blason, tenu:castle.tenu, b, chest:[r2(ct.x),r2(ct.y),r2(ct.z)] }; }
+  function makeLink(){ return location.origin+location.pathname+'#'+LZString.compressToEncodedURIComponent(JSON.stringify(serialize())); }
+  function loadCastle(d){
+    for(const b of [...blocks]) removeBlock(b); clearSlots(); ring.visible=false; blocks=[]; chest=null;
+    castle.name=d.name||genName(); castle.blason=d.bl||genBlason(); castle.tenu=d.tenu||0;
+    for(const e of d.b) addPiece(TYPES[e[0]], e[1],e[2],e[3], {x:e[4],y:e[5],z:e[6],w:e[7]});
+    addPiece('chest', d.chest[0], d.chest[1], d.chest[2]);
+    toAssault(); }
+  function loadFromHash(){ const h=location.hash.slice(1); if(h.length<4) return false;
+    try{ siegeIndex=-1; const json=LZString.decompressFromEncodedURIComponent(h); if(!json) return false; loadCastle(JSON.parse(json)); return true; }
+    catch(e){ console.error('lien invalide',e); return false; } }
+
+  // ---------- CAMPAGNE : châteaux-graines (typeIdx wall0 tower1 beam2 chest3 towerW4 pedestal5) ----------
+  const Q=[0,0,0,1];
+  const PED=[5,0,0.6,0,...Q], TOIT=[2,0,2.02,0,...Q], TOIT2=[2,0,2.26,0,...Q];   // socle + toit(s)
+  const T4=[[1,0.9,1.0,0.9,...Q],[1,-0.9,1.0,0.9,...Q],[1,0.9,1.0,-0.9,...Q],[1,-0.9,1.0,-0.9,...Q]]; // 4 tours pierre
+  const W4=[[0,0,0.5,1.05,...Q],[0,0,0.5,-1.05,...Q],[0,1.05,0.5,0,...Q],[0,-1.05,0.5,0,...Q]];        // 4 murs bas
+  const W4H=[[0,0,1.5,1.05,...Q],[0,0,1.5,-1.05,...Q],[0,1.05,1.5,0,...Q],[0,-1.05,1.5,0,...Q]];       // 4 murs (2e étage)
+  const CAP=[[0,0.9,2.5,0.9,...Q],[0,-0.9,2.5,0.9,...Q],[0,0.9,2.5,-0.9,...Q],[0,-0.9,2.5,-0.9,...Q]]; // créneaux sur tours
+  const GRAINES = [
+    { name:'Cabane de Garde', tenu:1, bl:{champ:'shield',part:'plain',charge:'tower',field:'#C98A3B',ord:'#FFF6E3'},
+      chest:[0,1.55,0], b:[ PED, TOIT ] },
+    { name:'Tour de Guet', tenu:2, bl:{champ:'shield',part:'pale',charge:'lozenge',field:'#8FA0AE',ord:'#F5C518'},
+      chest:[0,1.55,0], b:[ PED, [4,0,1.0,0.9,...Q],[4,0,1.0,-0.9,...Q], TOIT ] },
+    { name:'Bastion de Pierre', tenu:4, bl:{champ:'shield',part:'fess',charge:'cross',field:'#5B6670',ord:'#FFF6E3'},
+      chest:[0,1.55,0], b:[ PED, ...T4, TOIT ] },
+    { name:'Le Bunker', tenu:5, bl:{champ:'round',part:'cross',charge:'tower',field:'#5B6670',ord:'#F5C518'},
+      chest:[0,1.55,0], b:[ PED, ...T4, ...W4, TOIT ] },
+    { name:'La Couronne', tenu:7, bl:{champ:'shield',part:'bend',charge:'star',field:'#3b6a7a',ord:'#F5C518'},
+      chest:[0,1.55,0], b:[ PED, ...T4, ...W4, ...CAP, TOIT ] },
+    { name:'Forteresse de Mornehaut', tenu:9, bl:{champ:'round',part:'pale',charge:'star',field:'#7a3b3b',ord:'#F5C518'},
+      chest:[0,1.55,0], b:[ PED, ...T4, ...W4, ...CAP, TOIT, TOIT2 ] },
+    { name:'Citadelle Imprenable', tenu:15, bl:{champ:'shield',part:'cross',charge:'cross',field:'#2a2f45',ord:'#F5C518'},
+      chest:[0,1.55,0], b:[ PED, ...T4, ...W4, ...CAP, TOIT, TOIT2 ] },
+  ];
+  let campaign = +localStorage.getItem('breche:campaign')||0, siegeIndex=-1;
+  function startSiege(i){ siegeIndex=i; loadCastle(GRAINES[i]); }
+  // --- sélecteur de forteresses : on peut (re)jouer N'IMPORTE quel niveau ---
+  const levelsEl=document.getElementById('levels'), lgridEl=document.getElementById('lgrid');
+  function openLevels(){ audio(); lgridEl.innerHTML='';
+    GRAINES.forEach((g,i)=>{ const done = i < campaign;
+      const tirs = 4+Math.floor(i/2);
+      const b=document.createElement('button'); b.className='lvl'+(done?' done':'');
+      b.innerHTML='<span class="lnum">'+(done?'★':(i+1))+'</span><span><span class="lname">'+g.name
+        +'</span><span class="lmeta">Difficulté '+'◆'.repeat(Math.min(5,i+1))+' · '+tirs+' tirs'+(done?' · ✅ prise':'')+'</span></span>';
+      b.onclick=()=>{ levelsEl.style.display='none'; startSiege(i); };
+      lgridEl.appendChild(b); });
+    levelsEl.style.display='flex'; }
+  document.getElementById('lclose').onclick=()=>{ levelsEl.style.display='none'; };
+
+  // ---------- MODES ----------
+  let mode='build';
+  const modeEl=document.getElementById('mode'), helpEl=document.getElementById('help');
+  const actionBtn=document.getElementById('action'), undoBtn=document.getElementById('undo'), paletteEl=document.getElementById('palette');
+  function setHelp(){
+    const sub=document.querySelector('#title small'); if(sub) sub.style.display=(mode==='build'?'block':'none');
+    helpEl.innerHTML = mode==='build'
+      ? "🧱 <b>Entoure et couvre le coffre perché</b> (anneau vert = à l'abri), puis <b>⚔️ Sceller</b>.<br><small>🪨 Pierre = bouclier qui tient face aux assauts · 🪵 Bois = +2× Gloire mais éclate · ⬅️➡️ tourner · ↶ annuler</small>"
+      : "🎯 <b>Tire le boulet vers le bas, relâche</b> — vise la <b>flèche dorée</b> sur le coffre. Fais-le <b>tomber ou voler</b> !<br><small>⬅️➡️ tourner le château</small>"; }
+  let selected='wall';
+  const palhintEl=document.getElementById('palhint');
+  function showPalHint(){ if(mode!=='build'){ palhintEl.style.display='none'; return; }
+    palhintEl.textContent=PIECES[selected].icon+' '+PIECES[selected].trait; palhintEl.style.display='block'; }
+  function buildPalette(){ paletteEl.innerHTML='';
+    for(const t of ['wall','tower','towerW','beam']){ const b=document.createElement('button');
+      b.innerHTML=PIECES[t].icon+'<br>'+PIECES[t].label; b.style.lineHeight='1.15';
+      b.style.background='#'+PIECES[t].color.toString(16).padStart(6,'0');
+      if(t===selected) b.classList.add('sel'); b.onclick=()=>{ selected=t; buildPalette(); makeGhost(); showPalHint(); sndSelect(); }; paletteEl.appendChild(b); }
+    showPalHint(); }
+  function toBuild(){ mode='build'; won=false; shots=0;
+    for(const b of [...blocks]) removeBlock(b); for(const p of projectiles){ world.removeRigidBody(p.body); scene.remove(p.group);}
+    blocks=[]; projectiles=[]; chest=null; siegeIndex=-1;
+    addPiece('pedestal', 0, 0.6, 0);                         // socle imposé au centre
+    chest = addPiece('chest', 0, 1.2 + PIECES.chest.half[1], 0);  // le coffre est PERCHÉ dessus (à protéger)
+    buildSlots();                                            // emplacements suggérés
+    modeEl.textContent='🧱 ATELIER'; shotsEl.style.display='none'; gloireHud.style.display='block'; paletteEl.style.display='flex'; undoBtn.style.display=''; siegeBtn.style.display='';
+    actionBtn.innerHTML=ICONS.flag+'<span>Prêter serment</span>'; bannerEl.style.display='none'; document.getElementById('tuthint').style.display='none'; buildPalette(); makeGhost(); setHelp(); }
+  function toAssault(){ if(!chest){ flash('Pose un coffre !'); return; }
+    MAX_SHOTS = siegeIndex>=0 ? 4+Math.floor(siegeIndex/2) : 4;   // forteresses dures = plus de tirs
+    mode='assault'; won=false; held=false; assessTimer=0; shotsLeft=MAX_SHOTS;
+    { const ct=chest.body.translation(); chestHome={x:ct.x,y:ct.y,z:ct.z}; }
+    assaultSnapshot = serialize(); castle.gloire = computeGloire(); endEl.style.display='none';   // snapshot + gloire scellée
+    if(ghost) ghost.visible=false; clearSlots(); ring.visible=false; gloireHud.style.display='none';
+    modeEl.textContent = siegeIndex>=0 ? ('🏰 SIÈGE '+(siegeIndex+1)+'/'+GRAINES.length) : '⚔️ ASSAUT'; shotsEl.style.display='';
+    updateShotsHUD(); showBanner();
+    paletteEl.style.display='none'; document.getElementById('palhint').style.display='none'; undoBtn.style.display='none'; siegeBtn.style.display='none'; actionBtn.disabled=false; actionBtn.innerHTML=ICONS.hammer+'<span>Rebâtir</span>';
+    if(!localStorage.getItem('breche:tut')) document.getElementById('tuthint').style.display='block'; setHelp(); }
+  actionBtn.onclick=()=>{ mode==='build'?openSerment():toBuild(); };
+  undoBtn.onclick=()=>{ if(mode==='build'&&blocks.length) removeBlock(blocks[blocks.length-1]); };
+  const siegeBtn=document.getElementById('siegeBtn');
+  siegeBtn.onclick=()=>{ openLevels(); };  // ouvre le choix de forteresse (rejouable, dont la 1ère)
+
+  // ---------- GHOST de pose ----------
+  let ghost=null;
+  function makeGhost(){ if(ghost) scene.remove(ghost);
+    const h=PIECES[selected].half;
+    ghost=new THREE.Mesh(new THREE.BoxGeometry(h[0]*2,h[1]*2,h[2]*2),
+      new THREE.MeshStandardMaterial({color:PIECES[selected].color, transparent:true, opacity:.45}));
+    ghost.visible=false; scene.add(ghost); }
+  const raycaster=new THREE.Raycaster(), ndc=new THREE.Vector2();
+  function cellUnderPointer(cx,cy){ ndc.set((cx/innerWidth)*2-1, -(cy/innerHeight)*2+1);
+    raycaster.setFromCamera(ndc,camera);
+    const hits=raycaster.intersectObjects([planeRay, ...blocks.map(b=>b.group)], true);
+    if(!hits.length) return null; const p=hits[0].point;
+    const gx=Math.round(p.x), gz=Math.round(p.z); if(Math.hypot(gx,gz)>baseR-0.5) return null;
+    let top=0; for(const b of blocks){ if(Math.round(b.group.position.x)===gx && Math.round(b.group.position.z)===gz) top=Math.max(top,b.group.position.y+b.half[1]); }
+    return { x:gx, y:top+PIECES[selected].half[1], z:gz }; }
+
+  // ---------- ENTRÉES ----------
+  const POW_MIN=8,POW_MAX=30; let aiming=false,currentPower=POW_MIN,currentAngle=0.4,aimSX=0,aimSY=0;
+  const powerWrap=document.getElementById('power'), powerFill=powerWrap.firstElementChild;
+  const powerFromCharge=t=>{ const P=1.5,ph=(t%P)/P,tri=ph<.5?ph*2:2-ph*2; return POW_MIN+tri*(POW_MAX-POW_MIN); };
+  const cnv=renderer.domElement;
+  cnv.addEventListener('pointermove',e=>{
+    if(mode==='build'){ const c=cellUnderPointer(e.clientX,e.clientY);
+      if(c){ ghost.visible=true; ghost.position.set(c.x,c.y,c.z); ghost.material.color.set(isOpenSlot(c.x,c.z)?0x7ec850:PIECES[selected].color); } else ghost.visible=false; return; }
+    if(aiming){ const dx=e.clientX-aimSX, dy=e.clientY-aimSY, L=Math.hypot(dx,dy);  // visée-fronde : glisse pour viser
+      currentPower=Math.min(POW_MAX, POW_MIN + L*0.11);                              // longueur = puissance
+      currentAngle=Math.max(0.12, Math.min(1.0, Math.atan2(Math.max(0,dy), Math.abs(dx)+1)));  // glisse bas = cloche · côté = tendu
+      powerFill.style.width=((currentPower-POW_MIN)/(POW_MAX-POW_MIN)*100)+'%'; updateTraj(currentPower,currentAngle); } });
+  cnv.addEventListener('pointerdown',e=>{ audio();
+    if(mode==='build'){ const c=cellUnderPointer(e.clientX,e.clientY); if(c){ const o=addPiece(selected,c.x,c.y,c.z); o.placedGlow=1.2; sndPlace(); } }
+    else { document.getElementById('tuthint').style.display='none'; try{localStorage.setItem('breche:tut','1');}catch(e){}
+      aiming=true; aimSX=e.clientX; aimSY=e.clientY; currentPower=POW_MIN; currentAngle=0.35; powerWrap.style.display='block'; updateTraj(currentPower,currentAngle); } });
+  addEventListener('pointerup',()=>{ if(!aiming)return; aiming=false; powerWrap.style.display='none'; traj.visible=false; impactRing.visible=false; aimMark.visible=false;
+    if(mode==='assault' && !won && !held && shotsLeft>0){ fire(currentPower,currentAngle); shotsLeft--; updateShotsHUD(); if(shotsLeft===0) assessTimer=2.8; } });
+  document.getElementById('rotL').onclick=()=>rotate(+1);
+  document.getElementById('rotR').onclick=()=>rotate(-1);
+  addEventListener('keydown',e=>{ if(e.key==='ArrowLeft')rotate(+1); if(e.key==='ArrowRight')rotate(-1);
+    const i=['1','2','3','4'].indexOf(e.key); if(mode==='build'&&i>=0){ selected=['wall','tower','towerW','beam'][i]; buildPalette(); makeGhost(); } });
+  addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+  // ---------- JUS sur collisions ----------
+  let lastThud=0; const toShatter=[];
+  function handleCollisions(now){ let n=0;
+    eventQueue.drainCollisionEvents((h1,h2,started)=>{ if(!started||n>=4)return;
+      const o1=colMap.get(h1), o2=colMap.get(h2);
+      const proj=(o1&&o1.kind==='proj')||(o2&&o2.kind==='proj');
+      const obj=(o1&&o1.kind!=='proj')?o1:(o2&&o2.kind!=='proj'?o2:(o1||o2)); if(!obj||!obj.body) return;
+      const lv=obj.body.linvel(), sp=Math.hypot(lv.x,lv.y,lv.z);
+      const isWood=(obj.type==='towerW'||obj.type==='beam');
+      if(isWood && (proj||sp>6) && !obj.broken){     // 🪵 LE BOIS ÉCLATE sous un bon choc
+        obj.broken=true; const t=obj.body.translation();
+        spawnDebris(t.x,t.y,t.z, obj.color, 14); spawnDust(t.x,t.y,t.z,5);
+        shake=Math.max(shake,.32); if(now-lastThud>0.05){ sndCrack(); lastThud=now; }
+        toShatter.push(obj); n++; return; }
+      if(proj||sp>3.6){ const t=obj.body.translation();   // 🪨 la pierre encaisse et bascule
+        spawnDust(t.x,t.y,t.z, proj?4:2); if(proj) spawnDebris(t.x,t.y,t.z, obj.color||0x999999, 3);
+        shake=Math.max(shake, Math.min(.28, sp*0.028 + (proj?0.10:0)));
+        if(now-lastThud>0.09){ sndThud(); lastThud=now; } n++; } });
+    for(const o of toShatter) removeBlock(o); toShatter.length=0; }
+
+  // ---------- BOUCLE ----------
+  const clock=new THREE.Clock(); let tNow=0;
+  function loop(){ let dt=clock.getDelta(); if(dt>.05)dt=.05; tNow+=dt;
+    if(hitStop>0){ hitStop-=dt; }            // hit-stop : on gèle la physique un instant
+    else { world.step(eventQueue); handleCollisions(tNow); }
+    for(const b of blocks){ const t=b.body.translation(), r=b.body.rotation();
+      b.group.position.set(t.x,t.y,t.z); b.group.quaternion.set(r.x,r.y,r.z,r.w);
+      if(b.pop>0){ b.pop=Math.max(0,b.pop-dt*6); const k=1+b.pop*0.18; b.group.scale.setScalar(k); } }
+    for(const p of projectiles){ const t=p.body.translation(), r=p.body.rotation();
+      p.group.position.set(t.x,t.y,t.z); p.group.quaternion.set(r.x,r.y,r.z,r.w); }
+    updateParticles(dt); updateGuidance(); updateStability(dt); updateAssault(dt); checkWin(); updateBeacon(); updateCamera(dt); updateTreb();
+    sun.intensity += (sunBase-sun.intensity)*Math.min(1,dt*3); renderer.render(scene,camera);
+    requestAnimationFrame(loop); }
+  makeGhost();
+  // icônes SVG sur les boutons à texte fixe (un seul endroit, cohérent)
+  const setBtnHTML=(id,icon,label)=>{ const b=document.getElementById(id); if(b) b.innerHTML=icon+'<span>'+label+'</span>'; };
+  setBtnHTML('siegeBtn',ICONS.castle,'Assiéger');
+  setBtnHTML('swear',ICONS.flag,'Prêter serment');
+  setBtnHTML('share',ICONS.link,'Partager');
+  setBtnHTML('rerollName',ICONS.dice,'Nom');
+  setBtnHTML('rerollBlason',ICONS.dice,'Blason');
+  setBtnHTML('rebuildBtn',ICONS.hammer,'Bâtir un château');
+  setBtnHTML('lclose',ICONS.back,'Retour');
+  setBtnHTML('replayBtn',ICONS.replay,"Rejouer l'assaut");
+  const homeEl=document.getElementById('home');
+  const closeHome=()=>homeEl.style.display='none';
+  document.getElementById('homeBuild').onclick=()=>{ audio(); closeHome(); toBuild(); };
+  document.getElementById('homeCampaign').onclick=()=>{ audio(); closeHome(); openLevels(); };
+  document.getElementById('homeContinue').onclick=()=>{ audio(); closeHome(); startSiege(Math.min(campaign,GRAINES.length-1)); };
+  if(campaign<=0) document.getElementById('homeContinue').style.display='none';
+  if(loadFromHash()) closeHome();   // lien partagé : on saute l'accueil, direct à l'assaut
+  else toBuild();                   // l'atelier se prépare derrière l'écran-titre
+  loop();
+}
+</script>
+</body>
+</html>
